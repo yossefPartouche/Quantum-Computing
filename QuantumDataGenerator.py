@@ -1,13 +1,10 @@
 import qutip as qt
 import numpy as np
 import torch
+import os
 
 class QuantumDataGenerator:
     def __init__(self):
-        """
-        Initializes the virtual quantum laboratory with the physical parameters 
-        and timeframe constraints extracted from the experiment.
-        """
         # 1. THE EXPERIMENTAL TIMEFRAME
         self.t_final = 4.0
         self.steps = 100
@@ -23,7 +20,7 @@ class QuantumDataGenerator:
         self.sig_y = qt.sigmay()
         self.sig_z = qt.sigmaz()
 
-        # 4. INITIAL STATE (Ground state |0>)
+        # 4. INITIAL STATE
         self.psi0 = qt.basis(2, 0)
 
         # 5. HAMILTONIAN & COLLAPSE OPERATORS
@@ -31,90 +28,76 @@ class QuantumDataGenerator:
         self.c_ops = [np.sqrt(self.gamma_phi - self.gamma_m) * self.sig_z]
         self.sc_ops = [np.sqrt(self.gamma_m) * self.sig_z]
 
-        # 6. SOLVER OPTIONS (Forces QuTiP to keep noise data in memory)
-        self.sim_options = {'store_measurement': 'middle'}
+        # 6. UPDATED SOLVER OPTIONS
+        self.sim_options = {
+            'store_measurement': 'middle',
+            'keep_runs_results': True,
+            'map' : 'loky',
+            'num_cpus' : 8
 
-    def simulate_single_trace(self):
+        }
+
+    def generate_dataset(self, num_traces):
         """
-        Runs a single 4-microsecond simulation of the qubit.
-        Returns the 100-step noisy measurement record (V_t) and the final projective outcome (y_T).
+        Generates a batch of data using parallel processing.
         """
-        # Run the Stochastic Master Equation solver
+        # In QuTiP 5.x, map_func is passed directly or handled by the solver
+        # We also pass ntraj to generate the batch in parallel
         result = qt.smesolve(
             self.H,             
             self.psi0,          
             self.tlist,         
             c_ops=self.c_ops,   
             sc_ops=self.sc_ops, 
-            e_ops=[self.sig_z], # We only need to track the Z-axis to find the final state
-            ntraj=1,       
-            options=self.sim_options
+            e_ops=[self.sig_z],
+            ntraj=num_traces,
+            options=self.sim_options,
+            # Parallelization is now often handled here or automatically
+            # If your system supports it, QuTiP 5 uses parallel_map by default for ntraj > 1
         )
 
-        # Extract the noisy measurement record (V_t) safely across QuTiP versions
-        try:
-            V_t = result.measurement[0].real 
-        except AttributeError:
-            try:
-                V_t = result.measurements[0][0].real 
-            except AttributeError:
-                V_t = result.wiener_process[0][0]
-
-        # Flatten the array to ensure it is a clean 1D list of 100 floats
-        V_t = np.array(V_t).flatten().real
-
-        # --- SIMULATE THE STRONG PROJECTIVE MEASUREMENT ---
-        # result.expect[0] holds the Z-axis trajectory (+1 is state 0, -1 is state 1)
-        final_z_expect = result.expect[0][-1] 
-
-        # Convert the final Z-axis expectation into a pure probability of being in state 1 (0.0 to 1.0)
-        prob_excited = (1.0 - final_z_expect) / 2.0 
-
-        # Force the state to collapse into a definitive 0 or 1 based on that probability
-        y_T = np.random.binomial(1, prob_excited) 
-
-        return V_t, y_T
-
-    def generate_dataset(self, num_traces):
-        """
-        Loops the simulation to generate a massive dataset for AI training.
-        Packages the inputs (X) and targets (Y) into PyTorch Tensors.
-        """
-        print(f"Generating {num_traces} quantum trajectories. This might take a moment...")
-        
         X_data = []
         Y_data = []
 
+        # Process the results
         for i in range(num_traces):
-            V_t, y_T = self.simulate_single_trace()
-            X_data.append(V_t)
-            Y_data.append(y_T)
-            
-            # Simple progress tracker in the console
-            if (i + 1) % max(1, (num_traces // 10)) == 0:
-                print(f"Progress: {i + 1} / {num_traces} traces generated.")
+            try:
+                # Syntax for extracting measurement noise can vary by sub-version
+                raw_noise = result.measurement[i][0].real
+            except (AttributeError, IndexError):
+                try:
+                    raw_noise = result.measurements[i][0].real
+                except (AttributeError, IndexError):
+                    raw_noise = result.wiener_process[i][0]
 
-        # Convert the lists into PyTorch Tensors
-        # X shape becomes (batch_size, sequence_length=100, features=1)
+            V_t = np.array(raw_noise).flatten().real
+            X_data.append(V_t)
+
+            # Simulate the final strong measurement
+            final_z_expect = result.expect[0][i][-1] 
+            prob_excited = (1.0 - final_z_expect) / 2.0 
+            y_T = np.random.binomial(1, prob_excited) 
+            Y_data.append(y_T)
+
         X_tensor = torch.tensor(np.array(X_data), dtype=torch.float32).unsqueeze(-1)
-        
-        # Y shape becomes (batch_size, 1)
         Y_tensor = torch.tensor(np.array(Y_data), dtype=torch.float32).unsqueeze(-1)
 
-        print("Dataset generation complete!")
         return X_tensor, Y_tensor
 
-# ==========================================
-# TEST RUN THE GENERATOR
-# ==========================================
-if __name__ == "__main__":
-    # Instantiate our new virtual laboratory
-    generator = QuantumDataGenerator()
-    
-    # Generate a tiny batch of 10 traces just to test that it works
-    # Note: The paper originally generated 1.5 million traces for training!
-    X_train, Y_train = generator.generate_dataset(num_traces=10)
-    
-    print("\n--- Tensor Shapes ---")
-    print(f"X_train shape (The Noisy Sensor Data): {X_train.shape}")
-    print(f"Y_train shape (The Final Qubit States): {Y_train.shape}")
+    def generate_massive_dataset(self, total_traces=1500000, batch_size=10000):
+        # Create directory if it doesn't exist
+        DATA_DIR = 'quantum_data_batches'
+        if not os.path.exists(DATA_DIR):
+            os.makedirs(DATA_DIR)
+
+        num_batches = total_traces // batch_size
+        print(f"Starting massive generation: {total_traces} traces in {num_batches} batches.")
+
+        for b in range(num_batches):
+            print(f"Processing Batch {b+1}/{num_batches}...")
+            X_batch, Y_batch = self.generate_dataset(num_traces=batch_size)
+            
+            torch.save(X_batch, f'{DATA_DIR}/X_batch_{b}.pt')
+            torch.save(Y_batch, f'{DATA_DIR}/Y_batch_{b}.pt')
+            
+        print("Massive dataset generation complete!")

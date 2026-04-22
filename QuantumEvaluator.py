@@ -42,7 +42,7 @@ class QuantumEvaluator:
     
     def plot_predictions_vs_reality(self, X_val, Y_val, num_samples=10):
         """
-        A quick visual check showing what the AI guessed vs what actually happened.
+        A quick visual check showing what the mmodel guessed vs what actually happened.
         """
         self.model.eval()
         with torch.no_grad():

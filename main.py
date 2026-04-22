@@ -1,74 +1,63 @@
 import torch
 import os
+import glob
 from QuantumDataGenerator import QuantumDataGenerator
 from QuantumLSTM import QuantumLSTM
 from QuantumEvaluator import QuantumEvaluator
 
 def main():
     # --- CONFIGURATION FLAGS ---
-    # Set to True to force new data generation even if files exist
-    FORCE_REGENERATE = False 
-    # Set to True to run the training phase
+    FORCE_REGENERATE = True   # Set to True to start generation
     RUN_TRAINING = True      
     
     # --- DATA PARAMETERS ---
-    TRAIN_SIZE = 5000
-    VAL_SIZE = 1000
-    DATA_FILES = ['X_train.pt', 'Y_train.pt', 'X_val.pt', 'Y_val.pt']
+    TOTAL_TRACES = 1500000    # Target from the original research
+    BATCH_SIZE = 1000        # Chunks saved to disk to manage RAM
+    DATA_DIR = 'quantum_data_batches'
     
     print("==============================================")
     print(" PHASE 1: DATA PREPARATION")
     print("==============================================")
     
-    # Logic: Skip generation if files exist AND FORCE_REGENERATE is False
-    if not FORCE_REGENERATE and all(os.path.exists(f) for f in DATA_FILES):
-        print("Existing datasets found on disk. Loading...")
-        X_train, Y_train = torch.load('X_train.pt'), torch.load('Y_train.pt')
-        X_val, Y_val = torch.load('X_val.pt'), torch.load('Y_val.pt')
-    else:
-        print("Starting virtual quantum lab for data generation...")
-        lab = QuantumDataGenerator()
-        X_train, Y_train = lab.generate_dataset(num_traces=TRAIN_SIZE)
-        X_val, Y_val = lab.generate_dataset(num_traces=VAL_SIZE)
-        
-        # Save tensors for future reuse
-        torch.save(X_train, 'X_train.pt')
-        torch.save(Y_train, 'Y_train.pt')
-        torch.save(X_val, 'X_val.pt')
-        torch.save(Y_val, 'Y_val.pt')
-        print("Quantum datasets saved to disk.")
+    lab = QuantumDataGenerator()
+    
+    if FORCE_REGENERATE or not os.path.exists(DATA_DIR):
+        # This uses all CPU cores via parallel_map to generate 1.5M traces
+        lab.generate_massive_dataset(total_traces=TOTAL_TRACES, batch_size=BATCH_SIZE)
+    
+    # --- LOAD AND COMBINE DATA FOR TRAINING ---
+    print("Loading batches from disk...")
+    X_files = sorted(glob.glob(f"{DATA_DIR}/X_batch_*.pt"))
+    Y_files = sorted(glob.glob(f"{DATA_DIR}/Y_batch_*.pt"))
+    
+    # For training, we load a subset or use a DataLoader to manage memory
+    # Start with a large segment (e.g., 100,000) for high-precision results
+    X_train = torch.cat([torch.load(f) for f in X_files[:10]])
+    Y_train = torch.cat([torch.load(f) for f in Y_files[:10]])
+    
+    # Separate validation set
+    X_val = torch.load(X_files[-1])
+    Y_val = torch.load(Y_files[-1])
+
+    print(f"Dataset ready: {X_train.shape[0]} training traces.")
 
     print("\n==============================================")
     print(" PHASE 2: TRAINING THE AI")
     print("==============================================")
     brain = QuantumLSTM()
-    loss_history = []
-
+    
     if RUN_TRAINING:
-        # Run training and store the history for visualization
-        loss_history = brain.train_model(X_train, Y_train, epochs=40, batch_size=1024)
-        # CRITICAL: Save the weights after training so you can skip training next time
-        torch.save(brain.state_dict(), 'model_weights.pth')
-        print("Training complete. Weights saved to 'model_weights.pth'.")
+        # 100 Epochs with Learning Rate Sledding and Gradual Dropout
+        loss_history = brain.train_model(X_train, Y_train, epochs=100, batch_size=1024)
+        torch.save(brain.state_dict(), 'bidirectional_brain.pth')
     else:
-        # Load pre-trained weights if skipping training
-        if os.path.exists('model_weights.pth'):
-            print("Skipping training. Loading pre-trained weights...")
-            brain.load_state_dict(torch.load('model_weights.pth'))
-        else:
-            print("WARNING: No saved weights found! Model will use random neurons.")
+        brain.load_state_dict(torch.load('bidirectional_brain.pth'))
 
     print("\n==============================================")
     print(" PHASE 3: ADVANCED EVALUATION")
     print("==============================================")
     dashboard = QuantumEvaluator(brain)
-    
     dashboard.calculate_accuracy(X_val, Y_val)
-    
-    # Only plot loss if training was actually performed
-    if len(loss_history) > 0:
-        dashboard.plot_training_loss(loss_history)
-        
     dashboard.plot_advanced_metrics(X_val, Y_val)
     dashboard.plot_predictions_vs_reality(X_val, Y_val, num_samples=10)
 
