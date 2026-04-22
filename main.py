@@ -7,8 +7,8 @@ from QuantumEvaluator import QuantumEvaluator
 
 def main():
     # --- CONFIGURATION FLAGS ---
-    FORCE_REGENERATE = True   # Set to True to start generation
-    RUN_TRAINING = True      
+    FORCE_REGENERATE = False   # Set to True to start generation
+    RUN_TRAINING = False      
     
     # --- DATA PARAMETERS ---
     TOTAL_TRACES = 1500000    # Target from the original research
@@ -32,8 +32,8 @@ def main():
     
     # For training, we load a subset or use a DataLoader to manage memory
     # Start with a large segment (e.g., 100,000) for high-precision results
-    X_train = torch.cat([torch.load(f) for f in X_files[:10]])
-    Y_train = torch.cat([torch.load(f) for f in Y_files[:10]])
+    X_train = torch.cat([torch.load(f) for f in X_files[:100]])
+    Y_train = torch.cat([torch.load(f) for f in Y_files[:100]])
     
     # Separate validation set
     X_val = torch.load(X_files[-1])
@@ -42,7 +42,7 @@ def main():
     print(f"Dataset ready: {X_train.shape[0]} training traces.")
 
     print("\n==============================================")
-    print(" PHASE 2: TRAINING THE AI")
+    print(" PHASE 2: TRAINING")
     print("==============================================")
     brain = QuantumLSTM()
     
@@ -58,8 +58,12 @@ def main():
     print("==============================================")
     dashboard = QuantumEvaluator(brain)
     dashboard.calculate_accuracy(X_val, Y_val)
+    brain.eval()
+    with torch.no_grad():
+        model_predictions = brain(X_val)
+    dashboard.tomographic_check(model_predictions, Y_val)
     dashboard.plot_advanced_metrics(X_val, Y_val)
-    dashboard.plot_predictions_vs_reality(X_val, Y_val, num_samples=10)
+    dashboard.plot_predictions_vs_reality(X_val, Y_val, num_samples=200)
 
 if __name__ == "__main__":
     main()
