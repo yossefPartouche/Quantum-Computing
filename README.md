@@ -14,14 +14,14 @@ Where:
   - Where $d\mathbf{W}_t$ represents an ever so small increment of a **Wiener Process**, which is drawn from a Guassian distribution with $\mu = 0$ and $\sigma^2 = dt$, thus the probability of obtaining the exact same sequence of $d\mathbf{W}_t$ values over a $4 \mu s$ window is effectively zero.
 
 
-In real-world quantum hardware,  By pivoting to an online learning method, we elilminated the risk of the model 'memorizing' noise pattern and forced it to adapt to the live unpredictable nature of quantum evolution.
+In real-world quantum hardware, pivoting to an online learning method, we elilminated the risk of the model 'memorizing' noise pattern and forced it to adapt to the live unpredictable nature of quantum evolution.
 
 ### Online Learning 
 This project implements an **Online, RL-style Training Loop**
 
 - **Dynamic Generation**: Measurement records ($V_{t}$) are generated during the training, preventing the model from "memorizing" specific noise patterns and forcing it to learn universal physics. 
   
-- **Physics-First Optimization**: We discovered that **Cross-Entropy Loss** is a poor metric for quantum claribration due to inherent probabilistic entropy. We transitioned to using **Relatice Physical Error $(\epsilon)$** as the primary driver for early stopping and model selection. 
+- **Physics-First Optimization**: We discovered that **Cross-Entropy Loss** is a poor metric for quantum claribration due to inherent probabilistic entropy. We transitioned to using **Relative Physical Error $(\epsilon)$** as the primary driver for early stopping and model selection. 
 
 ### Key Performance 
 
