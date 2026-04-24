@@ -1,69 +1,50 @@
 import torch
 import os
 import glob
-from QuantumDataGenerator import QuantumDataGenerator
-from QuantumLSTM import QuantumLSTM
-from QuantumEvaluator import QuantumEvaluator
+from src.QuantumDataGenerator import QuantumDataGenerator
+from src.QuantumLSTM import QuantumLSTM
+from src.QuantumEvaluator import QuantumEvaluator
+from src.OnlineQuantumTrainer import OnlineQuantumTrainer
 
 def main():
     # --- CONFIGURATION FLAGS ---
-    FORCE_REGENERATE = False   # Set to True to start generation
     RUN_TRAINING = False      
-    
-    # --- DATA PARAMETERS ---
-    TOTAL_TRACES = 1500000    # Target from the original research
-    BATCH_SIZE = 1000        # Chunks saved to disk to manage RAM
-    DATA_DIR = 'quantum_data_batches'
-    
-    print("==============================================")
-    print(" PHASE 1: DATA PREPARATION")
-    print("==============================================")
+    MODEL_PATH = 'models/LSTM_QuantumObserver_eps5e-4.pth'
     
     lab = QuantumDataGenerator()
+    model = QuantumLSTM()
     
-    if FORCE_REGENERATE or not os.path.exists(DATA_DIR):
-        # This uses all CPU cores via parallel_map to generate 1.5M traces
-        lab.generate_massive_dataset(total_traces=TOTAL_TRACES, batch_size=BATCH_SIZE)
-    
-    # --- LOAD AND COMBINE DATA FOR TRAINING ---
-    print("Loading batches from disk...")
-    X_files = sorted(glob.glob(f"{DATA_DIR}/X_batch_*.pt"))
-    Y_files = sorted(glob.glob(f"{DATA_DIR}/Y_batch_*.pt"))
-    
-    # For training, we load a subset or use a DataLoader to manage memory
-    # Start with a large segment (e.g., 100,000) for high-precision results
-    X_train = torch.cat([torch.load(f) for f in X_files[:100]])
-    Y_train = torch.cat([torch.load(f) for f in Y_files[:100]])
-    
-    # Separate validation set
-    X_val = torch.load(X_files[-1])
-    Y_val = torch.load(Y_files[-1])
-
-    print(f"Dataset ready: {X_train.shape[0]} training traces.")
-
-    print("\n==============================================")
-    print(" PHASE 2: TRAINING")
     print("==============================================")
-    brain = QuantumLSTM()
-    
+    print(" AI QUANTUM OBSERVER: PIPELINE")
+    print("==============================================")
+
     if RUN_TRAINING:
-        # 100 Epochs with Learning Rate Sledding and Gradual Dropout
-        loss_history = brain.train_model(X_train, Y_train, epochs=100, batch_size=1024)
-        torch.save(brain.state_dict(), 'bidirectional_brain.pth')
-    else:
-        brain.load_state_dict(torch.load('bidirectional_brain.pth'))
+        print("\n PHASE: ONLINE TRAINING MARATHON")
 
-    print("\n==============================================")
-    print(" PHASE 3: ADVANCED EVALUATION")
-    print("==============================================")
-    dashboard = QuantumEvaluator(brain)
-    dashboard.calculate_accuracy(X_val, Y_val)
-    brain.eval()
+        trainer = OnlineQuantumTrainer(lab, model)
+        trainer.run_infinite_marathon()
+        torch.save(model.state_dict(), MODEL_PATH)
+    
+    else:
+        print(f"\n PHASE: EVALUATING CONVERGED MODEL ({MODEL_PATH})")
+        if not os.path.exists(MODEL_PATH):
+            print(f"ERROR: Model file {MODEL_PATH} not found")
+            return
+        model.load_state_dict(torch.load(MODEL_PATH))
+
+    model.eval()
+    dashboard = QuantumEvaluator(model)
+
+    print("\nGenerating fresh validation traces...")
+    X_val, Y_val = lab.generate_dataset(num_traces=1000)
+
     with torch.no_grad():
-        model_predictions = brain(X_val)
-    dashboard.tomographic_check(model_predictions, Y_val)
-    dashboard.plot_advanced_metrics(X_val, Y_val)
-    dashboard.plot_predictions_vs_reality(X_val, Y_val, num_samples=200)
+        model_predictions = model(X_val)
+    
+    dashboard.tomographic_check(model_predictions, Y_val, num_bins=20)
+    dashboard.calculate_accuracy(X_val, Y_val)
+    dashboard.plot_predictions_vs_reality(X_val, Y_val, num_samples=100)
+    dashboard.plot_advanced_metrics(X_val, Y_val, lab)
 
 if __name__ == "__main__":
     main()

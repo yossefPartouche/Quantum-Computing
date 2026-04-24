@@ -1,4 +1,10 @@
-*.pt
+__pycache__/
 *.pyc
-*.png
-*.pth
+.DS_Store
+# Keep only the best model
+models/*
+!models/LSTM_QuantumObserver_eps5e-4.pth
+
+results/*
+!tomoVal.png
+!RabiFreq(V-Curve).pngs
