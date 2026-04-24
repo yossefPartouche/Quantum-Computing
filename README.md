@@ -8,10 +8,10 @@ $$d\rho_t = -i [H, \rho_t]dt + \gamma D[\sigma_z]\rho_tdt + \sqrt{\eta \gamma}\m
 
 Where: 
 
-- **The Drift** $-i [H, \rho_t]dt$ : Rabi Oscillations
-- **The Diffusion (Decoherence)** $\gamma D[\sigma_z]\rho_tdt$: Gradual Loss of quantum information 
-- **Stochastic Kick** $ \sqrt{\eta \gamma}\mathbf{H}[\sigma_z]\rho_td\mathbf{W}_t $: 
-  - Where $d\mathbf{W}_t$ represents an ever so small increment of a **Wiener Process**, which is drawn from a Guassian distribution with $\mu = 0$ and $\sigma^2 = dt$, thus the probability of obtaining the exact same sequence of $d\mathbf{W}_t$ values over a $4\mus$ window is effectively zero.
+- **The Drift:** $-i [H, \rho_t]dt$ Rabi Oscillations
+- **The Diffusion (Decoherence):** $\gamma D[\sigma_z]\rho_tdt$ Gradual Loss of quantum information 
+- **Stochastic Kick:** $\sqrt{\eta \gamma} \mathbf{H}[\sigma_z]\rho_td\mathbf{W}_t$: 
+  - Where $d\mathbf{W}_t$ represents an ever so small increment of a **Wiener Process**, which is drawn from a Guassian distribution with $\mu = 0$ and $\sigma^2 = dt$, thus the probability of obtaining the exact same sequence of $d\mathbf{W}_t$ values over a $4 \mu s$ window is effectively zero.
 
 
 In real-world quantum hardware,  By pivoting to an online learning method, we elilminated the risk of the model 'memorizing' noise pattern and forced it to adapt to the live unpredictable nature of quantum evolution.
