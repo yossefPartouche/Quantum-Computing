@@ -32,5 +32,5 @@ This project implements an **Online, RL-style Training Loop**
 ---
 
 **Credits & Collaboration**
-I developed this project with architectural guidance, physics debugging and research narrative assistance provided by **Gemini**. This allowed me to dive deep in to the intersection of LSTMs and Stochastic Master Equation (SME), specifically optimizing for limited computation environments. 
-
+Developed with Gemini as a sparring partner for the quantum-physics background and for debugging edge cases on the simulation side. The
+research design moving from a static dataset to online training, switching from cross-entropy to relative physical error, and the model-selection criteria is my own.
